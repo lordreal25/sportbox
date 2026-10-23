@@ -1,74 +1,189 @@
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sport Digital — Онлайн</title>
-
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SportBox — HLS Player</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
 
   <style>
+    * { box-sizing: border-box; }
+
     body {
       margin: 0;
-      background: #111;
+      background: #101116;
       color: #fff;
       font-family: Arial, sans-serif;
     }
 
-    .player-container {
-      max-width: 1000px;
-      margin: 30px auto;
-      padding: 15px;
+    header {
+      background: #1b1d25;
+      padding: 20px;
+      text-align: center;
+      border-bottom: 2px solid #e63946;
     }
 
-    h2 {
-      font-size: 22px;
+    h1 { margin: 0; font-size: 27px; }
+    main { max-width: 950px; margin: 25px auto; padding: 0 15px; }
+
+    .panel {
+      background: #1b1d25;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 18px;
     }
+
+    input {
+      display: block;
+      width: 100%;
+      padding: 13px;
+      margin: 10px 0;
+      background: #101116;
+      border: 1px solid #414550;
+      border-radius: 8px;
+      color: white;
+      font-size: 15px;
+    }
+
+    button {
+      border: 0;
+      padding: 12px 18px;
+      border-radius: 8px;
+      background: #e63946;
+      color: white;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:hover { background: #c92d39; }
+
+    .secondary { background: #383c48; }
 
     video {
       display: block;
       width: 100%;
       aspect-ratio: 16 / 9;
       background: #000;
+      border-radius: 8px;
     }
+
+    #status {
+      color: #c7c7ce;
+      font-size: 14px;
+      overflow-wrap: anywhere;
+    }
+
+    .buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+    .hint { color: #aaa; font-size: 13px; line-height: 1.5; }
   </style>
 </head>
+
 <body>
+<header>
+  <h1>SPORTBOX</h1>
+  <div style="color:#bbb;margin-top:6px">HLS онлайн-плеер</div>
+</header>
 
-  <div class="player-container">
-    <h2>Sport Digital — Прямой эфир</h2>
+<main>
+  <section class="panel">
+    <h3 style="margin-top:0">Добавить трансляцию</h3>
 
-    <video id="video"
-           controls
-           autoplay
-           playsinline
-           poster=""
-    ></video>
-  </div>
+    <form id="streamForm">
+      <input
+        id="streamInput"
+        type="url"
+        placeholder="Вставь ссылку https://.../playlist.m3u8"
+        required
+      >
 
-  <script>
-    const video = document.getElementById('video');
+      <div class="buttons">
+        <button type="submit">▶ Смотреть</button>
+        <button type="button" class="secondary" id="stopBtn">
+          ■ Остановить
+        </button>
+      </div>
+    </form>
 
-    const streamUrl = 'ВСТАВЬТЕ_СЮДА_ПОЛНУЮ_ССЫЛКУ_M3U8';
+    <p class="hint">
+      Вставь полный URL HLS-потока (.m3u8). Некоторые ссылки требуют
+      действующей авторизации и могут не работать на сторонних сайтах.
+    </p>
+  </section>
 
-    if (Hls.isSupported()) {
-      const hls = new Hls();
-      hls.loadSource(streamUrl);
+  <section class="panel">
+    <video id="video" controls playsinline></video>
+    <p id="status">Вставь ссылку и нажми «Смотреть».</p>
+  </section>
+</main>
+
+<script>
+  const video = document.getElementById('video');
+  const input = document.getElementById('streamInput');
+  const status = document.getElementById('status');
+  let hls = null;
+
+  function stopPlayer() {
+    if (hls) {
+      hls.destroy();
+      hls = null;
+    }
+
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+  }
+
+  document.getElementById('streamForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+
+    const url = input.value.trim();
+
+    if (!/^https?:\/\//i.test(url)) {
+      status.textContent = 'Введи корректную HTTP(S)-ссылку.';
+      return;
+    }
+
+    stopPlayer();
+    status.textContent = 'Загрузка трансляции...';
+
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = url;
+      video.play().catch(() => {
+        status.textContent = 'Нажми Play для запуска видео.';
+      });
+      return;
+    }
+
+    if (window.Hls && Hls.isSupported()) {
+      hls = new Hls();
+      hls.loadSource(url);
       hls.attachMedia(video);
 
-      hls.on(Hls.Events.MANIFEST_PARSED, function () {
-        video.play().catch(() => {});
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        status.textContent = 'Трансляция загружена.';
+        video.play().catch(() => {
+          status.textContent = 'Нажми Play для запуска видео.';
+        });
       });
 
-      hls.on(Hls.Events.ERROR, function (event, data) {
+      hls.on(Hls.Events.ERROR, (_, data) => {
         if (data.fatal) {
-          console.error('Ошибка видеопотока:', data.type);
+          status.textContent =
+            'Ошибка загрузки. Проверь ссылку, токен и доступ источника (CORS).';
+          stopPlayer();
         }
       });
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = streamUrl;
+    } else {
+      status.textContent = 'Этот браузер не поддерживает HLS.';
     }
-  </script>
+  });
 
+  document.getElementById('stopBtn').addEventListener('click', () => {
+    stopPlayer();
+    status.textContent = 'Воспроизведение остановлено.';
+  });
+</script>
 </body>
 </html>
