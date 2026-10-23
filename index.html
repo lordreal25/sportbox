@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sport Digital — Онлайн</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+  <style>
+    body {
+      margin: 0;
+      background: #111;
+      color: #fff;
+      font-family: Arial, sans-serif;
+    }
+
+    .player-container {
+      max-width: 1000px;
+      margin: 30px auto;
+      padding: 15px;
+    }
+
+    h2 {
+      font-size: 22px;
+    }
+
+    video {
+      display: block;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #000;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="player-container">
+    <h2>Sport Digital — Прямой эфир</h2>
+
+    <video id="video"
+           controls
+           autoplay
+           playsinline
+           poster=""
+    ></video>
+  </div>
+
+  <script>
+    const video = document.getElementById('video');
+
+    const streamUrl = 'ВСТАВЬТЕ_СЮДА_ПОЛНУЮ_ССЫЛКУ_M3U8';
+
+    if (Hls.isSupported()) {
+      const hls = new Hls();
+      hls.loadSource(streamUrl);
+      hls.attachMedia(video);
+
+      hls.on(Hls.Events.MANIFEST_PARSED, function () {
+        video.play().catch(() => {});
+      });
+
+      hls.on(Hls.Events.ERROR, function (event, data) {
+        if (data.fatal) {
+          console.error('Ошибка видеопотока:', data.type);
+        }
+      });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = streamUrl;
+    }
+  </script>
+
+</body>
+</html>
