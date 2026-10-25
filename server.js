@@ -10,6 +10,7 @@ const server = http.createServer((req, res) => {
 
 const wss = new WebSocket.Server({ server, path: "/chat" });
 let currentStream = null;
+const onlineUsers = new Map();
 
 function sendToAll(packet) {
   const message = JSON.stringify(packet);
@@ -20,10 +21,26 @@ function sendToAll(packet) {
   }
 }
 
+function broadcastOnlineUsers() {
+  sendToAll({
+    type: "online-users",
+    users: Array.from(onlineUsers.values())
+  });
+}
+
+function updateOnlineUser(ws, value) {
+  const nickname = String(value || "Гость").trim().slice(0, 24) || "Гость";
+  if (onlineUsers.get(ws) === nickname) return;
+  onlineUsers.set(ws, nickname);
+  broadcastOnlineUsers();
+}
+
 wss.on("connection", (ws) => {
+  onlineUsers.set(ws, "Гость");
   if (currentStream) {
     ws.send(JSON.stringify(currentStream));
   }
+  broadcastOnlineUsers();
 
   ws.on("message", (raw) => {
     if (raw.length > 4096) return;
@@ -36,6 +53,11 @@ wss.on("connection", (ws) => {
     }
 
     if (!msg || typeof msg !== "object") return;
+
+    if (msg.type === "presence") {
+      updateOnlineUser(ws, msg.nickname);
+      return;
+    }
 
     if (msg.type === "stream-admin") {
       const expectedPassword = process.env.ADMIN_PASSWORD;
@@ -90,6 +112,7 @@ wss.on("connection", (ws) => {
       .trim().slice(0, 300);
 
     if (!nickname || !content) return;
+    updateOnlineUser(ws, nickname);
 
     const packet = {
       type: "chat",
@@ -99,6 +122,12 @@ wss.on("connection", (ws) => {
     };
 
     sendToAll(packet);
+  });
+
+  ws.on("close", () => {
+    if (onlineUsers.delete(ws)) {
+      broadcastOnlineUsers();
+    }
   });
 });
 

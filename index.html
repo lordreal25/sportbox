@@ -178,6 +178,47 @@
     #chatForm .row input { flex: 1; }
     #nickname { margin-top: 12px; }
 
+    .online-users {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      margin: 10px 0;
+      color: #a6a8b2;
+      font-size: 13px;
+    }
+
+    .online-count {
+      color: #71df91;
+      font-weight: bold;
+    }
+
+    .online-name {
+      padding: 3px 8px;
+      border: 1px solid #343743;
+      border-radius: 999px;
+      background: #15161d;
+      color: #e4e5e9;
+    }
+
+    .emoji-picker {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .emoji-button {
+      min-width: 40px;
+      padding: 7px 9px;
+      border: 1px solid #383c48;
+      background: #252832;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .emoji-button:hover { background: #383c48; }
+
     footer {
       text-align: center;
       color: #777b86;
@@ -280,6 +321,11 @@
       autocomplete="nickname"
     >
 
+    <div class="online-users" aria-live="polite">
+      <span id="onlineCount" class="online-count">● Онлайн: 0</span>
+      <span id="onlineNames">Подключение...</span>
+    </div>
+
     <div id="messages" aria-live="polite">
       <div class="muted">
         Добро пожаловать! Сообщения появятся здесь после подключения.
@@ -287,6 +333,14 @@
     </div>
 
     <form id="chatForm">
+      <div class="emoji-picker" aria-label="Футбольные смайлики">
+        <button class="emoji-button" type="button" data-emoji="⚽" aria-label="Добавить мяч">⚽</button>
+        <button class="emoji-button" type="button" data-emoji="🏆" aria-label="Добавить кубок">🏆</button>
+        <button class="emoji-button" type="button" data-emoji="🥅" aria-label="Добавить ворота">🥅</button>
+        <button class="emoji-button" type="button" data-emoji="📣" aria-label="Добавить болельщика">📣</button>
+        <button class="emoji-button" type="button" data-emoji="🔥" aria-label="Добавить огонь">🔥</button>
+        <button class="emoji-button" type="button" data-emoji="👏" aria-label="Добавить аплодисменты">👏</button>
+      </div>
       <div class="row">
         <input
           id="chatInput"
@@ -409,6 +463,8 @@
   const chatInput = document.getElementById('chatInput');
   const sendBtn = document.getElementById('sendBtn');
   const chatForm = document.getElementById('chatForm');
+  const onlineCount = document.getElementById('onlineCount');
+  const onlineNames = document.getElementById('onlineNames');
 
   let socket;
   let manuallyClosed = false;
@@ -418,6 +474,14 @@
   function setConnection(text, color) {
     connection.textContent = text;
     connection.style.color = color;
+  }
+
+  function sendPresence() {
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    socket.send(JSON.stringify({
+      type: 'presence',
+      nickname: nickname.value.trim() || 'Гость'
+    }));
   }
 
   function connectChat() {
@@ -435,6 +499,7 @@
       retryDelay = 2000;
       setConnection('● В сети', '#71df91');
       sendBtn.disabled = false;
+      sendPresence();
     });
 
     socket.addEventListener('message', (event) => {
@@ -458,6 +523,31 @@
 
       if (data.type === 'stream-error') {
         streamAdminStatus.textContent = String(data.message || 'Не удалось опубликовать трансляцию.');
+        return;
+      }
+
+      if (data.type === 'online-users') {
+        const users = Array.isArray(data.users) ? data.users : [];
+        onlineCount.textContent = `● Онлайн: ${users.length}`;
+        onlineNames.replaceChildren();
+
+        if (!users.length) {
+          onlineNames.textContent = 'Пока никого';
+          return;
+        }
+
+        const counts = new Map();
+        users.forEach((user) => {
+          const name = String(user || 'Гость');
+          counts.set(name, (counts.get(name) || 0) + 1);
+        });
+
+        counts.forEach((count, name) => {
+          const badge = document.createElement('span');
+          badge.className = 'online-name';
+          badge.textContent = count > 1 ? `${name} ×${count}` : name;
+          onlineNames.appendChild(badge);
+        });
         return;
       }
 
@@ -524,6 +614,22 @@
     }, retryDelay);
   }
 
+  nickname.addEventListener('change', sendPresence);
+
+  document.querySelectorAll('.emoji-button').forEach((button) => {
+    button.addEventListener('click', () => {
+      const emoji = button.dataset.emoji;
+      const start = chatInput.selectionStart;
+      const end = chatInput.selectionEnd;
+      const nextValue = chatInput.value.slice(0, start) + emoji + chatInput.value.slice(end);
+
+      if (nextValue.length > Number(chatInput.maxLength)) return;
+
+      chatInput.setRangeText(emoji, start, end, 'end');
+      chatInput.focus();
+    });
+  });
+
   chatForm.addEventListener('submit', (e) => {
     e.preventDefault();
 
@@ -543,6 +649,7 @@
       return;
     }
 
+    sendPresence();
     socket.send(JSON.stringify({
       type: 'chat',
       nickname: name.slice(0, 24),
