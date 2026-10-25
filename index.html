@@ -48,6 +48,9 @@
     }
 
     input:focus { border-color: #e63946; }
+    #streamAdminForm input { margin-top: 9px; }
+    #streamAdminForm button { margin-top: 10px; }
+    #streamAdminStatus { min-height: 16px; }
 
     button {
       border: 0;
@@ -140,6 +143,37 @@
   <section class="panel">
     <h2>▶ Онлайн-трансляция</h2>
 
+    <details>
+      <summary>Для администратора: добавить трансляцию</summary>
+      <form id="streamAdminForm">
+        <input
+          id="adminStreamTitle"
+          maxlength="100"
+          placeholder="Название трансляции"
+          required
+        >
+        <input
+          id="adminStreamUrl"
+          type="url"
+          placeholder="Ссылка на HLS-поток (.m3u8)"
+          required
+        >
+        <input
+          id="adminPassword"
+          type="password"
+          autocomplete="current-password"
+          placeholder="Пароль администратора"
+          required
+        >
+        <button type="submit">Опубликовать для зрителей</button>
+        <p id="streamAdminStatus" class="muted" aria-live="polite"></p>
+      </form>
+    </details>
+
+    <p id="currentStreamTitle" class="muted" aria-live="polite">
+      Сейчас нет опубликованной трансляции.
+    </p>
+
     <form id="streamForm">
       <input
         id="streamUrl"
@@ -214,22 +248,15 @@
   const video = document.getElementById('video');
   const streamUrl = document.getElementById('streamUrl');
   const playerStatus = document.getElementById('playerStatus');
+  const currentStreamTitle = document.getElementById('currentStreamTitle');
+  const streamAdminForm = document.getElementById('streamAdminForm');
+  const streamAdminStatus = document.getElementById('streamAdminStatus');
+  const adminStreamTitle = document.getElementById('adminStreamTitle');
+  const adminStreamUrl = document.getElementById('adminStreamUrl');
+  const adminPassword = document.getElementById('adminPassword');
   let hls = null;
 
-  function stopVideo() {
-    if (hls) {
-      hls.destroy();
-      hls = null;
-    }
-    video.pause();
-    video.removeAttribute('src');
-    video.load();
-  }
-
-  document.getElementById('streamForm').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const url = streamUrl.value.trim();
-
+  function playStream(url) {
     if (!/^https?:\/\//i.test(url)) {
       playerStatus.textContent = 'Укажи корректный URL.';
       return;
@@ -265,11 +292,44 @@
     } else {
       playerStatus.textContent = 'HLS не поддерживается этим браузером.';
     }
+  }
+
+  function stopVideo() {
+    if (hls) {
+      hls.destroy();
+      hls = null;
+    }
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+  }
+
+  document.getElementById('streamForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const url = streamUrl.value.trim();
+    playStream(url);
   });
 
   document.getElementById('stopVideo').addEventListener('click', () => {
     stopVideo();
     playerStatus.textContent = 'Воспроизведение остановлено.';
+  });
+
+  streamAdminForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      streamAdminStatus.textContent = 'Нет соединения с сервером.';
+      return;
+    }
+
+    socket.send(JSON.stringify({
+      type: 'stream-admin',
+      title: adminStreamTitle.value.trim(),
+      url: adminStreamUrl.value.trim(),
+      password: adminPassword.value
+    }));
+    streamAdminStatus.textContent = 'Публикация трансляции...';
   });
 
   // ОБЩИЙ WEBSOCKET-ЧАТ
@@ -313,6 +373,21 @@
       try {
         data = JSON.parse(event.data);
       } catch {
+        return;
+      }
+
+      if (data.type === 'stream') {
+        currentStreamTitle.textContent = `Сейчас в эфире: ${String(data.title || '')}`;
+        playStream(String(data.url || ''));
+        if (adminPassword.value) {
+          streamAdminStatus.textContent = 'Трансляция опубликована.';
+          adminPassword.value = '';
+        }
+        return;
+      }
+
+      if (data.type === 'stream-error') {
+        streamAdminStatus.textContent = String(data.message || 'Не удалось опубликовать трансляцию.');
         return;
       }
 
