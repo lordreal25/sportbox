@@ -82,6 +82,68 @@
     .muted { color: #a6a8b2; font-size: 13px; }
     #playerStatus { overflow-wrap: anywhere; }
 
+    .stream-banner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 10px 0;
+      padding: 10px 12px;
+      border: 1px solid #383c48;
+      border-radius: 8px;
+      background: #15161d;
+    }
+
+    .stream-banner.is-live {
+      border-color: #68313a;
+      background: #21181c;
+    }
+
+    .stream-live-badge {
+      display: inline-flex;
+      flex: 0 0 auto;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 8px;
+      border-radius: 5px;
+      background: #e63946;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .5px;
+    }
+
+    .stream-live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: live-pulse 1.5s ease-in-out infinite;
+    }
+
+    .stream-banner:not(.is-live) .stream-live-badge { display: none; }
+
+    .stream-banner-title {
+      min-width: 0;
+      color: #c7c8ce;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.4;
+      overflow-wrap: anywhere;
+    }
+
+    .stream-banner.is-live .stream-banner-title {
+      color: #fff;
+      font-size: 14px;
+    }
+
+    @keyframes live-pulse {
+      50% { opacity: .4; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .stream-live-dot { animation: none; }
+    }
+
     .chat-heading {
       display: flex;
       justify-content: space-between;
@@ -170,9 +232,15 @@
       </form>
     </details>
 
-    <p id="currentStreamTitle" class="muted" aria-live="polite">
-      Сейчас нет опубликованной трансляции.
-    </p>
+    <div id="currentStreamTitle" class="stream-banner" aria-live="polite">
+      <span class="stream-live-badge">
+        <span class="stream-live-dot" aria-hidden="true"></span>
+        В ЭФИРЕ
+      </span>
+      <span id="streamTitle" class="stream-banner-title">
+        Сейчас нет опубликованной трансляции.
+      </span>
+    </div>
 
     <form id="streamForm">
       <input
@@ -249,6 +317,7 @@
   const streamUrl = document.getElementById('streamUrl');
   const playerStatus = document.getElementById('playerStatus');
   const currentStreamTitle = document.getElementById('currentStreamTitle');
+  const streamTitle = document.getElementById('streamTitle');
   const streamAdminForm = document.getElementById('streamAdminForm');
   const streamAdminStatus = document.getElementById('streamAdminStatus');
   const adminStreamTitle = document.getElementById('adminStreamTitle');
@@ -377,7 +446,8 @@
       }
 
       if (data.type === 'stream') {
-        currentStreamTitle.textContent = `Сейчас в эфире: ${String(data.title || '')}`;
+        streamTitle.textContent = String(data.title || '');
+        currentStreamTitle.classList.add('is-live');
         playStream(String(data.url || ''));
         if (adminPassword.value) {
           streamAdminStatus.textContent = 'Трансляция опубликована.';
