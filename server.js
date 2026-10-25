@@ -91,12 +91,12 @@ wss.on("connection", (ws) => {
 
     if (!nickname || !content) return;
 
-    const packet = JSON.stringify({
+    const packet = {
       type: "chat",
       nickname,
       content,
       time: new Date().toISOString()
-    });
+    };
 
     sendToAll(packet);
   });
